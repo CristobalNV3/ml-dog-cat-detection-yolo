@@ -1,12 +1,19 @@
+from pathlib import Path
 from ultralytics import YOLO
 
-# 1. Carga del modelo (usamos 'm' para balance óptimo de precisión)
+# 1. Carga del modelo YOLOv8m preentrenado
 model = YOLO("yolov8m.pt")
 
-# 2. Inferencia con mayor resolución
-ruta_imagen = "ml-dog-cat-detection-yolo/data/imagen_de_animales.png"
-resultados = model(ruta_imagen, imgsz=1280)
+# 2. Definición de la ruta de la imagen e inferencia
+raiz_proyecto = Path(__file__).resolve().parents[1]
+ruta_imagen = raiz_proyecto / "data" / "imagen_de_animales.png"
+ruta_outputs = raiz_proyecto / "outputs"
+ruta_outputs.mkdir(parents=True, exist_ok=True)
 
+if not ruta_imagen.exists():
+    raise FileNotFoundError(f"No se encontró la imagen: {ruta_imagen}")
+
+resultados = model(str(ruta_imagen), imgsz=1280, conf=0.50)
 
 # 3. Acceso al resultado de la primera imagen
 resultado = resultados[0]
@@ -33,23 +40,46 @@ for box in resultado.boxes:
 
     detalles_detecciones.append((nombre_clase, confianza, coords))
 
-# 5. Generación del informe en consola
-print("\n" + "=" * 55)
-print("       INFORME DE RECONOCIMIENTO Y RECUENTO YOLO       ")
-print("=" * 55)
-print(f"Ruta analizada: {ruta_imagen}")
-print(f"Dimensiones procesadas: {resultado.orig_shape[0]}x{resultado.orig_shape[1]} px")
-print(f"Tiempo de inferencia: {resultado.speed['inference']:.2f} ms")
-print("-" * 55)
-print(f"{'Clase':<10} | {'Certeza':<10} | {'Coordenadas (x1, y1, x2, y2)'}")
-print("-" * 55)
+# 5. Generación del informe
+lineas_informe = [
+    "=" * 55,
+    "       INFORME DE RECONOCIMIENTO Y RECUENTO YOLO       ",
+    "=" * 55,
+    f"Ruta analizada: {ruta_imagen}",
+    f"Dimensiones procesadas: {resultado.orig_shape[0]}x{resultado.orig_shape[1]} px",
+    f"Tiempo de inferencia: {resultado.speed['inference']:.2f} ms",
+    "-" * 55,
+    f"{'Clase':<10} | {'Certeza':<10} | {'Coordenadas (x1, y1, x2, y2)'}",
+    "-" * 55,
+]
 
 for clase, conf, coords in detalles_detecciones:
-    print(f"{clase:<10} | {conf*100:>6.1f}%    | {coords}")
+    lineas_informe.append(
+        f"{clase:<10} | {conf*100:>6.1f}%    | {coords}"
+    )
 
-print("-" * 55)
-print(f"TOTAL DETECTADO: Perros: {dogs} | Gatos: {cats} | Otros: {otros}")
-print("=" * 55 + "\n")
+lineas_informe.extend([
+    "-" * 55,
+    f"TOTAL DETECTADO: Perros: {dogs} | Gatos: {cats} | Otros: {otros}",
+    "=" * 55,
+])
+
+informe = "\n".join(lineas_informe)
+
+# Mostrar informe en consola
+print("\n" + informe + "\n")
+
+# Guardar informe como archivo de texto
+ruta_informe = ruta_outputs / "resultados.txt"
+ruta_informe.write_text(informe, encoding="utf-8")
+
+# Guardar imagen procesada con bounding boxes
+ruta_resultado = ruta_outputs / "animales_detectados.png"
+resultado.save(filename=str(ruta_resultado))
+
+print(f"Informe guardado en: {ruta_informe}")
+print(f"Imagen procesada guardada en: {ruta_resultado}")
+
 
 # 6. Mostrar el resultado visual con las cajas delimitadoras
 resultado.show()
